@@ -1,0 +1,4 @@
+# Preserve deterministic upstream generator output without treating template whitespace as authored code.
+generated/** linguist-generated=true -whitespace
+openapi/openapi.json linguist-generated=true
+openapi/openapi.normalized.json linguist-generated=true

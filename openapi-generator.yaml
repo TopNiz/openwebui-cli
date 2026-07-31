@@ -1,0 +1,13 @@
+generatorName: python
+inputSpec: openapi/openapi.normalized.json
+outputDir: generated
+additionalProperties:
+  packageName: openwebui_client
+  projectName: openwebui-client-generated
+  packageVersion: 0.1.0
+  library: httpx
+  generateSourceCodeOnly: false
+  hideGenerationTimestamp: true
+  useOneOfDiscriminatorLookup: true
+  disallowAdditionalPropertiesIfNotPresent: false
+  sourceFolder: ""
