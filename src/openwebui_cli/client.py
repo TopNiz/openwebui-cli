@@ -104,11 +104,138 @@ class OpenWebUIClient:
         updated = {**current, **dict(patch)}
         return self.replace_system_config(updated)
 
+    def list_users(
+        self,
+        *,
+        query: str | None = None,
+        order_by: str | None = None,
+        direction: str | None = None,
+        page: int = 1,
+    ) -> dict[str, Any]:
+        """Return one page of users visible to the authenticated administrator."""
+
+        params = {
+            key: value
+            for key, value in {
+                "query": query,
+                "order_by": order_by,
+                "direction": direction,
+                "page": page,
+            }.items()
+            if value is not None
+        }
+        result = _require_mapping(self.request("GET", "/api/v1/users/", params=params), "user list")
+        users = result.get("users")
+        if not isinstance(users, list) or not all(isinstance(user, dict) for user in users):
+            raise APIError("Open WebUI returned an invalid user list.")
+        return {
+            "users": [_public_user(user) for user in users],
+            "total": result.get("total", len(users)),
+        }
+
+    def create_user(
+        self,
+        *,
+        name: str,
+        email: str,
+        password: str,
+        role: str = "user",
+        profile_image_url: str = "/user.png",
+    ) -> dict[str, Any]:
+        """Create a user and discard the session token returned by Open WebUI."""
+
+        _validate_role(role)
+        response = _require_mapping(
+            self.request(
+                "POST",
+                "/api/v1/auths/add",
+                json={
+                    "name": name,
+                    "email": email,
+                    "password": password,
+                    "role": role,
+                    "profile_image_url": profile_image_url,
+                },
+            ),
+            "created user",
+        )
+        return _public_user(response)
+
+    def update_user(self, user_id: str, patch: Mapping[str, Any]) -> dict[str, Any]:
+        """Update supported account fields; passwords are accepted only in memory."""
+
+        allowed = {"role", "name", "email", "profile_image_url", "password"}
+        unknown = sorted(set(patch) - allowed)
+        if unknown:
+            raise ValidationError(f"Unsupported user field(s): {', '.join(unknown)}")
+        if "role" in patch and patch["role"] is not None:
+            _validate_role(str(patch["role"]))
+        response = _require_mapping(
+            self.request("POST", f"/api/v1/users/{user_id}/update", json=dict(patch)),
+            "updated user",
+        )
+        return _public_user(response)
+
+    def get_default_permissions(self) -> dict[str, Any]:
+        """Read permissions inherited by ordinary users."""
+
+        return _require_mapping(
+            self.request("GET", "/api/v1/users/default/permissions"),
+            "default user permissions",
+        )
+
+    def replace_default_permissions(self, permissions: Mapping[str, Any]) -> dict[str, Any]:
+        """Replace the complete default-permissions document."""
+
+        result = self.request("POST", "/api/v1/users/default/permissions", json=dict(permissions))
+        if result is None:
+            return dict(permissions)
+        return _require_mapping(result, "updated default user permissions")
+
+    def get_user_settings(self) -> dict[str, Any]:
+        """Read settings for the account owning the active API key."""
+
+        result = self.request("GET", "/api/v1/users/user/settings")
+        if result is None:
+            return {}
+        return _require_mapping(result, "user settings")
+
+    def replace_user_settings(self, settings: Mapping[str, Any]) -> dict[str, Any]:
+        """Replace settings for the account owning the active API key."""
+
+        return _require_mapping(
+            self.request("POST", "/api/v1/users/user/settings/update", json=dict(settings)),
+            "updated user settings",
+        )
+
 
 def _require_mapping(value: Any, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise APIError(f"Open WebUI returned an invalid {label}.")
     return value
+
+
+def _public_user(user: Mapping[str, Any]) -> dict[str, Any]:
+    """Return account metadata while excluding tokens, passwords, settings, and OAuth data."""
+
+    safe_fields = (
+        "id",
+        "name",
+        "email",
+        "role",
+        "profile_image_url",
+        "is_active",
+        "group_ids",
+        "last_active_at",
+        "created_at",
+        "updated_at",
+    )
+    return {field: user.get(field) for field in safe_fields if field in user}
+
+
+def _validate_role(role: str) -> None:
+    if role not in {"pending", "user", "admin"}:
+        raise ValidationError("User role must be pending, user, or admin.")
 
 
 def _safe_error_detail(response: httpx.Response, api_key: str) -> str:

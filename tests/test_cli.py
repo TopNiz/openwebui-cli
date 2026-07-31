@@ -25,11 +25,36 @@ SYSTEM_CONFIG = {
 def test_root_and_nested_help() -> None:
     for arguments in (
         ["--help"],
+        ["profile", "--help"],
+        ["profile", "list", "--help"],
+        ["profile", "show", "--help"],
+        ["profile", "set", "--help"],
+        ["profile", "use", "--help"],
+        ["auth", "--help"],
+        ["auth", "keyring-store", "--help"],
+        ["auth", "status", "--help"],
         ["system", "--help"],
         ["system", "config", "--help"],
+        ["system", "config", "get", "--help"],
+        ["system", "config", "export", "--help"],
         ["system", "config", "set", "--help"],
-        ["profile", "set", "--help"],
-        ["auth", "status", "--help"],
+        ["system", "config", "apply", "--help"],
+        ["users", "--help"],
+        ["users", "list", "--help"],
+        ["users", "get", "--help"],
+        ["users", "create", "--help"],
+        ["users", "update", "--help"],
+        ["users", "reset-password", "--help"],
+        ["permissions", "--help"],
+        ["permissions", "get", "--help"],
+        ["permissions", "export", "--help"],
+        ["permissions", "set", "--help"],
+        ["permissions", "apply", "--help"],
+        ["user-settings", "--help"],
+        ["user-settings", "get", "--help"],
+        ["user-settings", "export", "--help"],
+        ["user-settings", "set", "--help"],
+        ["user-settings", "apply", "--help"],
     ):
         result = runner.invoke(app, arguments)
         assert result.exit_code == 0, result.output
@@ -91,6 +116,83 @@ def test_system_config_apply_posts_complete_configuration(tmp_path: Path) -> Non
         **SYSTEM_CONFIG,
         "ENABLE_SIGNUP": True,
     }
+
+
+@respx.mock
+def test_create_user_does_not_output_password_or_returned_token() -> None:
+    route = respx.post(f"{BASE_URL}/api/v1/auths/add").mock(
+        return_value=Response(
+            200,
+            json={
+                "id": "user-1",
+                "name": "Example User",
+                "email": "user@example.test",
+                "role": "user",
+                "profile_image_url": "/user.png",
+                "token": "not-a-real-session-token",
+                "token_type": "Bearer",
+            },
+        )
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "users",
+            "create",
+            "Example User",
+            "user@example.test",
+            "--password-stdin",
+            "--yes",
+        ],
+        input="not-a-real-password\n",
+        env=ENV,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert route.called
+    assert "not-a-real-password" not in result.output
+    assert "not-a-real-session-token" not in result.output
+    assert json.loads(result.output)["user"]["id"] == "user-1"
+
+
+@respx.mock
+def test_default_permission_set_dry_run() -> None:
+    respx.get(f"{BASE_URL}/api/v1/users/default/permissions").mock(
+        return_value=Response(200, json={"features": {"api_keys": False}})
+    )
+    post = respx.post(f"{BASE_URL}/api/v1/users/default/permissions")
+
+    result = runner.invoke(
+        app,
+        ["permissions", "set", "features.api_keys", "true", "--dry-run"],
+        env=ENV,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["changes"]["features.api_keys"]["after"] is True
+    assert not post.called
+
+
+@respx.mock
+def test_user_settings_nested_set_posts_complete_document() -> None:
+    respx.get(f"{BASE_URL}/api/v1/users/user/settings").mock(
+        return_value=Response(200, json={"ui": {"theme": "dark", "language": "fr"}})
+    )
+    post = respx.post(f"{BASE_URL}/api/v1/users/user/settings/update").mock(
+        return_value=Response(200, json={"ui": {"theme": "light", "language": "fr"}})
+    )
+
+    result = runner.invoke(
+        app,
+        ["user-settings", "set", "ui.theme", "light", "--yes"],
+        env=ENV,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert post.called
+    assert json.loads(post.calls[0].request.content) == {"ui": {"theme": "light", "language": "fr"}}
 
 
 def test_profile_set_never_writes_api_key(tmp_path: Path) -> None:

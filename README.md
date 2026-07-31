@@ -54,8 +54,9 @@ owui auth status
 owui profile ...
 owui auth ...
 owui system config ...
-owui users ...             # Sprint 2
-owui user-settings ...     # Sprint 2
+owui users ...
+owui permissions ...
+owui user-settings ...
 ```
 
 Examples:
@@ -66,9 +67,21 @@ owui system config get ENABLE_SIGNUP
 owui system config set ENABLE_SIGNUP false --dry-run
 owui system config set ENABLE_SIGNUP false --yes
 owui system config export system-config.json
+
+owui users list
+owui users get user@example.org
+owui users create "Example User" user@example.org
+owui users update user@example.org --role user
+owui users reset-password user@example.org
+
+owui permissions get
+owui permissions set features.api_keys false --dry-run
+owui user-settings set ui.language nl --dry-run
 ```
 
-Run `owui --help` and `<command> --help` for authoritative embedded documentation.
+Creation and password-reset commands read passwords through a hidden prompt by default. For automation, use `--password-stdin` and pipe directly from a protected secret source; never place a password in a command argument.
+
+Run `owui --help` and `<command> --help` for authoritative embedded documentation. See the complete [`CLI reference`](docs/CLI.md).
 
 ## Python library
 
