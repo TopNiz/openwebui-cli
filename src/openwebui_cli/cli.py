@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Any, NoReturn
+from typing import Annotated, Any, NoReturn, cast
 
 import typer
 
@@ -18,7 +19,12 @@ from openwebui_cli.config import (
 )
 from openwebui_cli.exceptions import OpenWebUIError, ValidationError
 from openwebui_cli.output import emit, write_json_file
-from openwebui_cli.values import changes_between, parse_cli_value
+from openwebui_cli.values import (
+    changes_between,
+    merge_nested,
+    parse_cli_value,
+    set_nested_value,
+)
 from openwebui_cli.version import __version__
 
 app = typer.Typer(
@@ -36,9 +42,24 @@ system_config_app = typer.Typer(
     no_args_is_help=True,
     help="Read, export, compare, and patch the complete Open WebUI administrator configuration.",
 )
+users_app = typer.Typer(
+    no_args_is_help=True,
+    help="List, inspect, create, and safely update Open WebUI user accounts.",
+)
+permissions_app = typer.Typer(
+    no_args_is_help=True,
+    help="Read and patch the default permissions inherited by ordinary users.",
+)
+user_settings_app = typer.Typer(
+    no_args_is_help=True,
+    help="Read and patch settings belonging to the account that owns the active API key.",
+)
 app.add_typer(profile_app, name="profile")
 app.add_typer(auth_app, name="auth")
 app.add_typer(system_app, name="system")
+app.add_typer(users_app, name="users")
+app.add_typer(permissions_app, name="permissions")
+app.add_typer(user_settings_app, name="user-settings")
 system_app.add_typer(system_config_app, name="config")
 
 
@@ -314,6 +335,416 @@ def system_config_apply(
     if not isinstance(patch, dict):
         _abort("The configuration patch must be a JSON object.")
     _apply_system_patch(_state(ctx), patch, dry_run=dry_run, yes=yes)
+
+
+@users_app.command("list")
+def users_list(
+    ctx: typer.Context,
+    query: Annotated[
+        str | None,
+        typer.Option(help="Optional name, email, or identifier search."),
+    ] = None,
+    page: Annotated[int, typer.Option(min=1, help="One-based result page.")] = 1,
+    order_by: Annotated[
+        str | None,
+        typer.Option(help="Optional Open WebUI ordering field."),
+    ] = None,
+    direction: Annotated[
+        str | None,
+        typer.Option(help="Optional ordering direction: asc or desc."),
+    ] = None,
+) -> None:
+    """List sanitized account metadata; settings, OAuth data, and credentials are omitted."""
+
+    if direction not in {None, "asc", "desc"}:
+        _abort("Direction must be asc or desc.")
+    state = _state(ctx)
+    try:
+        with state.client() as client:
+            result = client.list_users(
+                query=query, order_by=order_by, direction=direction, page=page
+            )
+    except OpenWebUIError as exc:
+        _abort(str(exc))
+    emit(result, compact=state.compact)
+
+
+@users_app.command("get")
+def users_get(
+    ctx: typer.Context,
+    identifier: Annotated[str, typer.Argument(help="Exact user ID or email address.")],
+) -> None:
+    """Find one user by exact ID or email without exposing private account settings."""
+
+    state = _state(ctx)
+    try:
+        with state.client() as client:
+            user = _find_user(client, identifier)
+    except OpenWebUIError as exc:
+        _abort(str(exc))
+    emit(user, compact=state.compact)
+
+
+@users_app.command("create")
+def users_create(
+    ctx: typer.Context,
+    name: Annotated[str, typer.Argument(help="Display name for the new account.")],
+    email: Annotated[str, typer.Argument(help="Unique email address for the new account.")],
+    role: Annotated[str, typer.Option(help="Initial role: pending, user, or admin.")] = "user",
+    password_stdin: Annotated[
+        bool,
+        typer.Option(
+            "--password-stdin",
+            help="Read one password line from standard input instead of a hidden prompt.",
+        ),
+    ] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Create without confirmation.")] = False,
+) -> None:
+    """Create a user without accepting a password argument or displaying the returned JWT."""
+
+    _validate_cli_role(role)
+    if not yes and not typer.confirm(f"Create {email} with role {role}?"):
+        raise typer.Abort()
+    state = _state(ctx)
+    password = ""
+    try:
+        password = _read_password(password_stdin=password_stdin)
+        with state.client() as client:
+            user = client.create_user(name=name, email=email, password=password, role=role)
+    except OpenWebUIError as exc:
+        _abort(str(exc))
+    finally:
+        password = ""
+    emit({"created": True, "user": user}, compact=state.compact)
+
+
+@users_app.command("update")
+def users_update(
+    ctx: typer.Context,
+    identifier: Annotated[str, typer.Argument(help="Exact user ID or email address.")],
+    name: Annotated[str | None, typer.Option(help="Replacement display name.")] = None,
+    email: Annotated[str | None, typer.Option(help="Replacement email address.")] = None,
+    role: Annotated[
+        str | None,
+        typer.Option(help="Replacement role: pending, user, or admin."),
+    ] = None,
+    profile_image_url: Annotated[
+        str | None,
+        typer.Option(help="Replacement profile image URL."),
+    ] = None,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Apply without confirmation.")] = False,
+) -> None:
+    """Update supported account metadata while preserving unspecified fields."""
+
+    if role is not None:
+        _validate_cli_role(role)
+    patch = {
+        key: value
+        for key, value in {
+            "name": name,
+            "email": email,
+            "role": role,
+            "profile_image_url": profile_image_url,
+        }.items()
+        if value is not None
+    }
+    if not patch:
+        _abort("At least one update option is required.")
+    state = _state(ctx)
+    try:
+        with state.client() as client:
+            current = _find_user(client, identifier)
+            changes = changes_between(current, {**current, **patch})
+            if not yes and not typer.confirm("Apply these account changes?"):
+                raise typer.Abort()
+            updated = client.update_user(str(current["id"]), patch)
+    except OpenWebUIError as exc:
+        _abort(str(exc))
+    emit({"updated": True, "changes": changes, "user": updated}, compact=state.compact)
+
+
+@users_app.command("reset-password")
+def users_reset_password(
+    ctx: typer.Context,
+    identifier: Annotated[str, typer.Argument(help="Exact user ID or email address.")],
+    password_stdin: Annotated[
+        bool,
+        typer.Option(
+            "--password-stdin",
+            help="Read one password line from standard input instead of a hidden prompt.",
+        ),
+    ] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Reset without confirmation.")] = False,
+) -> None:
+    """Replace a password using hidden input or protected stdin; the value is never printed."""
+
+    state = _state(ctx)
+    try:
+        with state.client() as client:
+            current = _find_user(client, identifier)
+            if not yes and not typer.confirm(f"Reset the password for {current.get('email')}?"):
+                raise typer.Abort()
+            password = _read_password(password_stdin=password_stdin)
+            try:
+                user = client.update_user(str(current["id"]), {"password": password})
+            finally:
+                password = ""
+    except OpenWebUIError as exc:
+        _abort(str(exc))
+    emit({"password_changed": True, "user": user}, compact=state.compact)
+
+
+@permissions_app.command("get")
+def permissions_get(ctx: typer.Context) -> None:
+    """Read the complete default-permissions document. Requires an administrator key."""
+
+    state = _state(ctx)
+    emit(_get_default_permissions(state), compact=state.compact)
+
+
+@permissions_app.command("export")
+def permissions_export(
+    ctx: typer.Context,
+    path: Annotated[Path, typer.Argument(help="Destination JSON file.")],
+    force: Annotated[
+        bool, typer.Option("--force", help="Replace an existing destination file.")
+    ] = False,
+) -> None:
+    """Export default permissions without silently replacing an existing file."""
+
+    state = _state(ctx)
+    try:
+        write_json_file(path, _get_default_permissions(state), force=force)
+    except OpenWebUIError as exc:
+        _abort(str(exc))
+    emit({"exported": str(path)}, compact=state.compact)
+
+
+@permissions_app.command("set")
+def permissions_set(
+    ctx: typer.Context,
+    path: Annotated[str, typer.Argument(help="Existing dot-delimited permission path.")],
+    value: Annotated[str, typer.Argument(help="JSON value or ordinary string.")],
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show changes without applying them.")
+    ] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Apply without confirmation.")] = False,
+) -> None:
+    """Patch one existing default permission while preserving all other permissions."""
+
+    _apply_default_permissions(
+        _state(ctx),
+        path=path,
+        value=parse_cli_value(value),
+        patch=None,
+        dry_run=dry_run,
+        yes=yes,
+    )
+
+
+@permissions_app.command("apply")
+def permissions_apply(
+    ctx: typer.Context,
+    file: Annotated[Path, typer.Argument(help="Partial nested JSON permission object.")],
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show changes without applying them.")
+    ] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Apply without confirmation.")] = False,
+) -> None:
+    """Recursively apply a partial permission object; unknown paths are rejected."""
+
+    patch = _read_json_object(file)
+    _apply_default_permissions(
+        _state(ctx), path=None, value=None, patch=patch, dry_run=dry_run, yes=yes
+    )
+
+
+@user_settings_app.command("get")
+def user_settings_get(ctx: typer.Context) -> None:
+    """Read settings for the account owning the selected API key."""
+
+    state = _state(ctx)
+    emit(_get_user_settings(state), compact=state.compact)
+
+
+@user_settings_app.command("export")
+def user_settings_export(
+    ctx: typer.Context,
+    path: Annotated[Path, typer.Argument(help="Destination JSON file.")],
+    force: Annotated[
+        bool, typer.Option("--force", help="Replace an existing destination file.")
+    ] = False,
+) -> None:
+    """Export current-user settings without silently replacing an existing file."""
+
+    state = _state(ctx)
+    try:
+        write_json_file(path, _get_user_settings(state), force=force)
+    except OpenWebUIError as exc:
+        _abort(str(exc))
+    emit({"exported": str(path)}, compact=state.compact)
+
+
+@user_settings_app.command("set")
+def user_settings_set(
+    ctx: typer.Context,
+    path: Annotated[str, typer.Argument(help="Dot-delimited setting path.")],
+    value: Annotated[str, typer.Argument(help="JSON value or ordinary string.")],
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show changes without applying them.")
+    ] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Apply without confirmation.")] = False,
+) -> None:
+    """Patch one current-user setting while preserving unrelated settings."""
+
+    _apply_user_settings(
+        _state(ctx),
+        path=path,
+        value=parse_cli_value(value),
+        patch=None,
+        dry_run=dry_run,
+        yes=yes,
+    )
+
+
+@user_settings_app.command("apply")
+def user_settings_apply(
+    ctx: typer.Context,
+    file: Annotated[Path, typer.Argument(help="Partial nested JSON settings object.")],
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show changes without applying them.")
+    ] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Apply without confirmation.")] = False,
+) -> None:
+    """Recursively apply a partial current-user settings object."""
+
+    patch = _read_json_object(file)
+    _apply_user_settings(_state(ctx), path=None, value=None, patch=patch, dry_run=dry_run, yes=yes)
+
+
+def _apply_default_permissions(
+    state: State,
+    *,
+    path: str | None,
+    value: Any,
+    patch: dict[str, Any] | None,
+    dry_run: bool,
+    yes: bool,
+) -> None:
+    try:
+        with state.client() as client:
+            current = client.get_default_permissions()
+            updated = (
+                set_nested_value(current, path, value, strict=True)
+                if path is not None
+                else merge_nested(current, patch or {}, strict=True)
+            )
+            changes = changes_between(current, updated)
+            if not changes or dry_run:
+                emit(
+                    {"applied": False, "dry_run": dry_run, "changes": changes},
+                    compact=state.compact,
+                )
+                return
+            if not yes and not typer.confirm("Apply these default-permission changes?"):
+                raise typer.Abort()
+            result = client.replace_default_permissions(updated)
+    except OpenWebUIError as exc:
+        _abort(str(exc))
+    emit({"applied": True, "changes": changes, "permissions": result}, compact=state.compact)
+
+
+def _apply_user_settings(
+    state: State,
+    *,
+    path: str | None,
+    value: Any,
+    patch: dict[str, Any] | None,
+    dry_run: bool,
+    yes: bool,
+) -> None:
+    try:
+        with state.client() as client:
+            current = client.get_user_settings()
+            updated = (
+                set_nested_value(current, path, value)
+                if path is not None
+                else merge_nested(current, patch or {})
+            )
+            changes = changes_between(current, updated)
+            if not changes or dry_run:
+                emit(
+                    {"applied": False, "dry_run": dry_run, "changes": changes},
+                    compact=state.compact,
+                )
+                return
+            if not yes and not typer.confirm("Apply these current-user setting changes?"):
+                raise typer.Abort()
+            result = client.replace_user_settings(updated)
+    except OpenWebUIError as exc:
+        _abort(str(exc))
+    emit({"applied": True, "changes": changes, "settings": result}, compact=state.compact)
+
+
+def _find_user(client: OpenWebUIClient, identifier: str) -> dict[str, Any]:
+    result = client.list_users(query=identifier)
+    users = cast(list[dict[str, Any]], result["users"])
+    folded = identifier.casefold()
+    exact = [
+        user
+        for user in users
+        if str(user.get("id", "")).casefold() == folded
+        or str(user.get("email", "")).casefold() == folded
+    ]
+    if len(exact) == 1:
+        return exact[0]
+    if not exact and len(users) == 1:
+        return users[0]
+    if not users:
+        raise ValidationError(f"No user matches {identifier!r}.")
+    raise ValidationError(f"User identifier {identifier!r} is ambiguous.")
+
+
+def _read_password(*, password_stdin: bool) -> str:
+    if password_stdin:
+        password = sys.stdin.readline().rstrip("\r\n")
+    else:
+        password = typer.prompt("Password", hide_input=True, confirmation_prompt=True)
+    if len(password) < 8:
+        password = ""
+        raise ValidationError("The password must contain at least eight characters.")
+    return password
+
+
+def _validate_cli_role(role: str) -> None:
+    if role not in {"pending", "user", "admin"}:
+        _abort("Role must be pending, user, or admin.")
+
+
+def _read_json_object(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        _abort(f"Cannot read JSON object {path}: {exc}")
+    if not isinstance(value, dict):
+        _abort(f"{path} must contain a JSON object.")
+    return value
+
+
+def _get_default_permissions(state: State) -> dict[str, Any]:
+    try:
+        with state.client() as client:
+            return client.get_default_permissions()
+    except OpenWebUIError as exc:
+        _abort(str(exc))
+
+
+def _get_user_settings(state: State) -> dict[str, Any]:
+    try:
+        with state.client() as client:
+            return client.get_user_settings()
+    except OpenWebUIError as exc:
+        _abort(str(exc))
 
 
 def _apply_system_patch(state: State, patch: dict[str, Any], *, dry_run: bool, yes: bool) -> None:
