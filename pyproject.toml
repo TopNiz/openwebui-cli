@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openwebui-cli"
+version = "0.1.0a0"
+description = "Unofficial Python library and CLI for Open WebUI administration and automation"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+authors = [{name = "Open WebUI CLI contributors"}]
+keywords = ["open-webui", "cli", "api", "administration", "automation"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: System :: Systems Administration",
+]
+dependencies = [
+  "httpx>=0.27,<1",
+  "keyring>=25,<26",
+  "platformdirs>=4,<5",
+  "pydantic>=2.10,<3",
+  "python-dateutil>=2.8.2",
+  "tomli-w>=1.1,<2",
+  "typer>=0.15,<1",
+  "typing-extensions>=4.12",
+]
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2",
+  "mypy>=1.14",
+  "pytest>=8.3",
+  "pytest-cov>=6",
+  "respx>=0.22",
+  "ruff>=0.9",
+]
+
+[project.scripts]
+owui = "openwebui_cli.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/TopNiz/openwebui-cli"
+Documentation = "https://github.com/TopNiz/openwebui-cli#readme"
+Issues = "https://github.com/TopNiz/openwebui-cli/issues"
+Source = "https://github.com/TopNiz/openwebui-cli"
+
+[tool.setuptools.packages.find]
+where = ["src", "generated"]
+include = ["openwebui_cli*", "openwebui_client*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+exclude = ["generated"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/openwebui_cli"]
+exclude = ["generated"]
+
+[tool.coverage.run]
+source = ["openwebui_cli"]

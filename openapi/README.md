@@ -1,6 +1,6 @@
 # OpenAPI source
 
-`openapi.json` is the pinned API description used to generate the low-level Python client.
+`openapi.json` is the unchanged, pinned upstream API description. `openapi.normalized.json` is a deterministic generation input that repairs upstream structural defects documented in `NORMALIZATION.md`.
 
 ## Provenance
 
@@ -18,6 +18,6 @@ See `source.json` for machine-readable provenance.
 2. Temporarily set `ENV=dev` if Swagger/OpenAPI routes are unavailable.
 3. Download `/openapi.json`.
 4. Validate the document and scan it for deployment-specific information and credentials.
-5. Update `source.json` and regenerate the client.
+5. Update `source.json` and run `scripts/generate-client.sh`; this normalizes the raw document before generation.
 6. Review the diff and compatibility impact in a pull request.
 7. Restore `ENV=prod` before production deployment.

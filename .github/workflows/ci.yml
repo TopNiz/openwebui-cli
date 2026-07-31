@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - run: uv sync --extra dev --locked
+      - run: uv run pytest
+      - if: matrix.python-version == '3.13'
+        run: uv run ruff check . && uv run ruff format --check src tests scripts
+      - if: matrix.python-version == '3.13'
+        run: uv run mypy src/openwebui_cli
+      - if: matrix.python-version == '3.13'
+        run: uv build
+      - if: matrix.python-version == '3.13'
+        run: uv run owui --help >/dev/null

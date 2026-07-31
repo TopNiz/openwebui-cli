@@ -1,0 +1,13 @@
+# The root project owns packaging, CI, tests, and top-level documentation.
+.gitignore
+.gitlab-ci.yml
+.travis.yml
+README.md
+setup.py
+setup.cfg
+pyproject.toml
+requirements.txt
+test-requirements.txt
+tox.ini
+git_push.sh
+test/
