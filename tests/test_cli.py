@@ -26,7 +26,7 @@ def test_version_option_without_command() -> None:
     result = runner.invoke(app, ["--version"])
 
     assert result.exit_code == 0, result.output
-    assert result.output.strip() == "0.1.0a1"
+    assert result.output.strip() == "0.1.0a2"
 
 
 def test_root_and_nested_help() -> None:

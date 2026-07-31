@@ -2,6 +2,12 @@
 
 All notable changes are documented here. The project follows semantic versioning after the initial proof-of-concept releases.
 
+## 0.1.0a2 — 2026-07-31
+
+### Fixed
+
+- Include the upstream Open WebUI license and third-party notices inside wheel and source artifacts.
+
 ## 0.1.0a1 — 2026-07-31
 
 ### Added
