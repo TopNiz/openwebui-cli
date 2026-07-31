@@ -80,6 +80,13 @@ class State:
         return OpenWebUIClient(connection)
 
 
+def _version_callback(value: bool) -> bool:
+    if value:
+        typer.echo(__version__)
+        raise typer.Exit()
+    return value
+
+
 @app.callback()
 def root(
     ctx: typer.Context,
@@ -100,14 +107,17 @@ def root(
     ] = False,
     version: Annotated[
         bool,
-        typer.Option("--version", is_eager=True, help="Show the CLI version and exit."),
+        typer.Option(
+            "--version",
+            callback=_version_callback,
+            is_eager=True,
+            help="Show the CLI version and exit.",
+        ),
     ] = False,
 ) -> None:
     """Select a profile globally, then invoke a command group shown below."""
 
-    if version:
-        typer.echo(__version__)
-        raise typer.Exit()
+    del version
     ctx.obj = State(profile=profile, base_url=base_url, config_file=config_file, compact=compact)
 
 

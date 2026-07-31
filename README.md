@@ -2,7 +2,7 @@
 
 An unofficial, open-source Python client and command-line interface for administering and automating [Open WebUI](https://github.com/open-webui/open-webui).
 
-> **Status:** pre-alpha proof of concept. The first milestone targets Open WebUI `0.11.0` and focuses on system configuration, user administration, and per-user settings.
+> **Status:** alpha proof of concept. Release `0.1.0a1` targets Open WebUI `0.11.0` and focuses on system configuration, user administration, permissions, and per-user settings.
 
 ## Goals
 
@@ -15,13 +15,15 @@ An unofficial, open-source Python client and command-line interface for administ
 
 ## Installation
 
-Until the first package release, install directly from GitHub:
+Install the CLI and module from the tagged GitHub release/source:
 
 ```bash
-uv tool install git+https://github.com/TopNiz/openwebui-cli.git
+uv tool install 'git+https://github.com/TopNiz/openwebui-cli.git@v0.1.0a1'
 # or
-python -m pip install git+https://github.com/TopNiz/openwebui-cli.git
+python -m pip install 'git+https://github.com/TopNiz/openwebui-cli.git@v0.1.0a1'
 ```
+
+Wheel and source artifacts are also attached to the GitHub pre-release. PyPI publication is intentionally deferred until trusted publishing is configured.
 
 For development:
 
@@ -97,9 +99,19 @@ The stable `OpenWebUIClient` facade covers supported workflows. The complete asy
 
 Chat uses Open WebUI's OpenAI-compatible endpoint and standard SDK conventions. This administration CLI covers Open WebUI-specific APIs that are not part of the OpenAI protocol.
 
-## Project plan
+## Global Pi skill
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md). Work is tracked through GitHub issues and delivered through reviewed sprint pull requests.
+The repository includes `skills/openwebui-remote`, a safety-focused global skill for remote Open WebUI administration. Install it once with:
+
+```bash
+./scripts/install-global-skill.sh
+```
+
+The installer refuses to overwrite an existing global skill. Restart or reload the agent harness after installation so it rediscovers the skill.
+
+## Project plan and compatibility
+
+See [`docs/ROADMAP.md`](docs/ROADMAP.md), [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), and [`CHANGELOG.md`](CHANGELOG.md). Work is tracked through GitHub issues and delivered through reviewed sprint pull requests.
 
 ## Security
 
