@@ -6,6 +6,8 @@ Deliver a safe, scriptable Open WebUI administration client that works both as a
 
 ## Milestone 0.1.0 — Administration MVP
 
+The initial `0.1.0a1` proof-of-concept increment implements the three sprints below. Future alpha increments will incorporate feedback before a stable `0.1.0` release.
+
 ### Sprint 0 — Repository and governance
 
 - public GitHub repository;
