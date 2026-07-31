@@ -1,0 +1,11 @@
+{
+  "upstream": "open-webui/open-webui",
+  "upstream_version": "0.11.0",
+  "openapi_version": "3.1.0",
+  "generator": "openapi-generator",
+  "generator_version": "7.21.0",
+  "retrieved_from": "/openapi.json",
+  "retrieved_at": "2026-07-31T08:18:04Z",
+  "retrieved_in_development_mode": true,
+  "sha256": "f140d9d1b6f6dda433e345460661d712a7e14c4946f9dc76cb043ac18be70110"
+}

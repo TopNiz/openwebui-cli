@@ -1,0 +1,26 @@
+name: Feature request
+description: Propose a user-facing capability
+title: "feat: "
+labels: ["type: enhancement"]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: User need
+      description: Explain the problem and affected users rather than only the proposed implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected library and CLI behavior
+    validations:
+      required: true
+  - type: textarea
+    id: api
+    attributes:
+      label: Relevant Open WebUI API endpoints
+  - type: textarea
+    id: security
+    attributes:
+      label: Security and compatibility considerations
