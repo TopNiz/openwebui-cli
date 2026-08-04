@@ -19,14 +19,22 @@ Use the `owui` CLI as the supported administration layer. Prefer its stable comm
 7. Do not invoke undocumented destructive generated-client operations without a reviewed plan and explicit user consent.
 8. Minimize personal data in chat output. Summarize user-list results instead of reproducing unnecessary names or email addresses.
 
-## Prerequisite check
+## Installation
+
+The CLI is distributed from its GitHub repository. Install the released version with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv tool install 'git+https://github.com/TopNiz/openwebui-cli.git@v0.1.0a2'
+```
+
+Verify the installation:
 
 ```bash
 command -v owui >/dev/null && owui --version
 owui profile list
 ```
 
-If `owui` is unavailable, follow the installation section in the project README. Do not silently install or reconfigure software unless the user requested it.
+Installing or upgrading a tool changes the local environment. Do not perform it automatically: show the command and obtain the user's explicit approval first.
 
 ## Select and verify a profile
 
