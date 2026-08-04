@@ -30,8 +30,8 @@ Use only read-only live smoke tests unless a disposable environment and explicit
 The release workflow builds from tags matching `v*` and publishes wheel/source artifacts to a GitHub pre-release.
 
 ```bash
-git tag -s v0.1.0a2 -m "Open WebUI CLI 0.1.0a2"
-git push origin v0.1.0a2
+git tag -s v0.1.0a3 -m "Open WebUI CLI 0.1.0a3"
+git push origin v0.1.0a3
 ```
 
 If signed tags are unavailable, document the reason and use an annotated tag. Do not publish to PyPI until trusted publishing and package ownership are configured explicitly.

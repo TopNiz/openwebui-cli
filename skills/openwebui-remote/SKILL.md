@@ -24,7 +24,7 @@ Use the `owui` CLI as the supported administration layer. Prefer its stable comm
 The CLI is distributed from its GitHub repository. Install the released version with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv tool install 'git+https://github.com/TopNiz/openwebui-cli.git@v0.1.0a2'
+uv tool install 'git+https://github.com/TopNiz/openwebui-cli.git@v0.1.0a3'
 ```
 
 Verify the installation:

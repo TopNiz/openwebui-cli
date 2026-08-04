@@ -2,7 +2,7 @@
 
 An unofficial, open-source Python client and command-line interface for administering and automating [Open WebUI](https://github.com/open-webui/open-webui).
 
-> **Status:** alpha proof of concept. Release `0.1.0a2` targets Open WebUI `0.11.0` and focuses on system configuration, user administration, permissions, and per-user settings.
+> **Status:** alpha proof of concept. Release `0.1.0a3` targets Open WebUI `0.11.0` and focuses on system configuration, user administration, permissions, and per-user settings.
 
 ## Goals
 
@@ -18,9 +18,9 @@ An unofficial, open-source Python client and command-line interface for administ
 Install the CLI and module from the tagged GitHub release/source:
 
 ```bash
-uv tool install 'git+https://github.com/TopNiz/openwebui-cli.git@v0.1.0a2'
+uv tool install 'git+https://github.com/TopNiz/openwebui-cli.git@v0.1.0a3'
 # or
-python -m pip install 'git+https://github.com/TopNiz/openwebui-cli.git@v0.1.0a2'
+python -m pip install 'git+https://github.com/TopNiz/openwebui-cli.git@v0.1.0a3'
 ```
 
 Wheel and source artifacts are also attached to the GitHub pre-release. PyPI publication is intentionally deferred until trusted publishing is configured.

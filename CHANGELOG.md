@@ -2,6 +2,12 @@
 
 All notable changes are documented here. The project follows semantic versioning after the initial proof-of-concept releases.
 
+## 0.1.0a3 — 2026-08-04
+
+### Changed
+
+- Document GitHub-tagged `uv tool install` setup directly in the global Open WebUI remote-administration skill.
+
 ## 0.1.0a2 — 2026-07-31
 
 ### Fixed
